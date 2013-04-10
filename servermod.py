@@ -309,7 +309,6 @@ class CommandLineClient(object):
                 extra = ""
                 if mod.stage != "release":
                     extra = " [stage: {0}]".format(mod.stage)
-                print(mod.id)
                 print(" - {0} (slug: {1}){2}".format(mod.name, mod.slug, extra))
             print("")
 
