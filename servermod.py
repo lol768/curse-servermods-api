@@ -1,9 +1,4 @@
-try:
-    import urllib2 as urllib_req
-    import urllib as urllib_par
-except ImportError:
-    import urllib.request as urllib_req
-    import urllib.parse as urllib_par
+import requests
 
 try:
     import json
@@ -12,6 +7,8 @@ except ImportError:
         import simplejson as json
     except ImportError:
         raise Exception("Please upgrade to Python 2.7+ or install the simplejson module.")
+
+import os.path, os
 
 def py3():
     """ This actually returns if you're NOT running Python 2 """
@@ -52,7 +49,7 @@ class ServerModFile(object):
         return True
 
 class ServerMod(object):
-    def __init__(self, api, id, slug, name, stage):
+    def __init__(self, api, id, slug=None, name=None, stage=None):
         self.api = api
         self.id = id
         self.slug = slug
@@ -118,33 +115,19 @@ class ServerModAPI(object):
             self.who_am_i = who_am_i
         self.file_cache = {}
 
-    def build_url(self, url, query=None):
-        if query is None:
-            return self.base_url + url
-        else:
-            return self.base_url + url + "?" + urllib_par.urlencode(query)
+    def build_url(self, url):
+        return self.base_url + url
 
-    def get(self, url):
+    def get(self, url, query={}):
         # build headers
         headers = {
             'X-API-Key': self.api_key,
             'User-Agent': self.who_am_i
         }
-
-        request = urllib_req.Request(url, headers=headers)
-        f = urllib_req.urlopen(request) # open socket
-
-        # did the request succeed?
-        if f.getcode() != 200:
-            raise HttpErrorException(f.getcode())
-
-        # decode the data
-        if py3():
-            str_data = f.readall().decode('utf-8') # python 3 mode
-            data = json.loads(str_data)
-        else:
-            data = json.load(f)
-        f.close()
+        
+        r = requests.get(url, params=query)
+        r.raise_for_status()
+        data = r.json()
 
         if 'errorCode' in data:
             raise APIErrorException(data)
@@ -155,8 +138,8 @@ class ServerModAPI(object):
         query = {
             'search': search
         }
-        url = self.build_url("/projects", query)
-        return [ServerMod.from_json(self, d) for d in self.get(url)]
+        url = self.build_url("/projects")
+        return [ServerMod.from_json(self, d) for d in self.get(url, query)]
 
     def files(self, project_id=None, project_ids=None):
         id_query = []
@@ -170,11 +153,14 @@ class ServerModAPI(object):
         else:
             raise Exception("One of project_id or project_ids must be passed into files()")
 
+        if id_query == '':
+            return []
+
         query = {
             'projectIds': id_query
         }
-        url = self.build_url("/files", query)
-        files = [ServerModFile.from_json(self, d) for d in self.get(url)]
+        url = self.build_url("/files")
+        files = [ServerModFile.from_json(self, d) for d in self.get(url, query)]
 
         # cache everything
         for file in files:
@@ -185,6 +171,103 @@ class ServerModAPI(object):
 
         if project_id is not None:
             return files # plain project ID
+        else:
+            file_tree = {}
+            for file in files:
+                if file.project_id in file_tree:
+                    file_tree[file.project_id].append(file)
+                else:
+                    file_tree[file.project_id] = [file]
+
+class CLIStorage(object):
+    def __init__(self, folder):
+        self.dir = folder
+        self.path = os.path.join(folder, '.servermods.json')
+        self.load()
+
+    def load(self):
+        if not os.path.exists(self.path):
+            self.data = {
+                'version': 1,
+                'installed': {}
+            }
+            self.save()
+            return
+
+        with open(self.path, 'r') as f:
+            self.data = json.load(f)
+
+    def save(self):
+        with open(self.path, 'w') as f:
+            json.dump(self.data, f)
+
+    def get_hash(self, filename):
+        import hashlib
+        path = os.path.join(self.dir, filename)
+        md5 = hashlib.md5()
+        with open(path, 'rb') as f:
+            eof = False
+            while not eof:
+                buf = f.read(128) # 128 == MD5 digest block size
+                if len(buf) < 128:
+                    eof = True
+                md5.update(buf)
+        return md5.hexdigest()
+
+    def installed(self, mod, file, filename):
+        store_data = {
+            'server_mod_id': mod.id,
+            'server_mod_name': mod.name,
+            'filename': filename,
+            'file_version': file.name,
+            'download_url': file.download_url,
+            'hash': self.get_hash(filename)
+        }
+        self.data['installed'][str(mod.id)] = store_data
+        return self
+
+    def removed(self, mod, file):
+        del self.data['installed'][str(mod.id)]
+        return self
+
+    def recheck(self):
+        lost_files = {}
+        renamed_files = {}
+        known_files = set()
+        dataset = self.get_data()
+        for data in dataset.values():
+            # does file still exist?
+            if not os.path.exists(os.path.join(self.dir, data['filename'])):
+                lost_files[data['hash']] = data
+            else:
+                known_files.add(data['filename'])
+
+        # now check to see if they just renamed the file to confuse me
+        for fn in os.listdir(self.dir):
+            if fn in known_files:
+                continue
+            # md5 hash the file
+            md5 = self.get_hash(fn)
+            if md5 in lost_files.keys():
+                # identified!
+                renamed_file = lost_files[md5]
+                renamed_file['filename'] = fn
+                renamed_files[str(renamed_file['server_mod_id'])] = renamed_file
+
+        # now delete all the files from the DB that we still don't know about
+        for data in lost_files.values():
+            del dataset[str(data['server_mod_id'])]
+
+        # and add all the renamed files back in
+        for data in renamed_files.values():
+            dataset[str(data['server_mod_id'])] = data
+
+        self.data['installed'] = dataset
+
+        return self
+
+    def get_data(self):
+        return self.data['installed']
 
 class CommandLineClient(object):
     BUFSIZE = 1024
@@ -199,6 +282,7 @@ class CommandLineClient(object):
 
         self.parser = parser = argparse.ArgumentParser()
         parser.add_argument('--verbose', action='store_true', help='output more debugging messages')
+        parser.add_argument('--plugins-dir', help='plugins directory to download files into', nargs='?')
 
         subparsers = parser.add_subparsers(help='sub-command help')
 
@@ -208,8 +292,10 @@ class CommandLineClient(object):
 
         parser_install = subparsers.add_parser('install', help='install a server mod')
         parser_install.add_argument('slug', help='server mod slugs to install', nargs='+')
-        parser_install.add_argument('--plugins-dir', help='plugins directory to download files into', nargs='?')
         parser_install.set_defaults(func=self.cmd_install)
+
+        parser_update = subparsers.add_parser('update', help='update all your server mods')
+        parser_update.set_defaults(func=self.cmd_update)
 
     def run(self):
         args = self.parser.parse_args()
@@ -236,9 +322,23 @@ class CommandLineClient(object):
             slug_mods[slug] = chosen_mod
         return slug_mods
 
+    def _get_storage(self, plugins_dir):
+        return CLIStorage(plugins_dir)
+
+    def canonicalise_plugins_dir(self, args):
+        # check that plugins_dir exists
+        plugins_dir = args.plugins_dir
+        if plugins_dir is None:
+            plugins_dir = 'plugins/'
+        # canonicalize
+        plugins_dir = os.path.abspath(plugins_dir)
+        if not os.path.exists(plugins_dir):
+            self.parser.error("The folder " + plugins_dir + " doesn't exist or is not a folder. Please tell me where your plugins folder is by adding: --plugins-dir=/home/minecraft/plugins")
+        return plugins_dir
+
     def print_status(self, msg):
         import sys
-        sys.stderr.write(msg + '\r')
+        sys.stderr.write(msg + '                     \r')
 
     def print_progress(self, file, position, size, file_num=None, total_files=None):
         import math
@@ -267,9 +367,8 @@ class CommandLineClient(object):
             elif ok_str == 'n' or ok_str == 'no':
                 return False
 
-    def download(self, file, into, file_num=None, total_files=None):
-        import os.path
-        outpath = os.path.join(into, file.server_mod.slug + '.jar')
+    def download(self, file, into, fn, file_num=None, total_files=None):
+        outpath = os.path.join(into, fn)
         # download into the server mod's slug so that we overwrite previous version of the same mod
 
         url = file.download_url
@@ -277,9 +376,10 @@ class CommandLineClient(object):
         self.print_progress(file, -1, -1, file_num, total_files)
 
         # ok, open the session
-        sock = urllib_req.urlopen(url)
-        headers = sock.info()
-        file_size = int(headers['Content-Length'])
+        resp = requests.get(url, stream=True)
+        resp.raise_for_status()
+        sock = resp.raw
+        file_size = int(resp.headers['Content-Length'])
 
         current_position = 0
         outfile = open(outpath, 'wb')
@@ -292,8 +392,20 @@ class CommandLineClient(object):
                 break
 
         outfile.close()
-        sock.close()
         print("")
+
+        return fn
+
+    def clean_mods_for_slugs(self, slugs):
+        mods = self._get_mods_for_slugs(slugs)
+
+        # could any slugs not be found?
+        if None in mods.values():
+            unfound = [slug for slug,mod in mods.items() if mod is None]
+            unfound_str = '"' + '", "'.join(unfound) + '"'
+            self.parser.error('Couldn\'t find the following server mods (try using "search" to find their slugs): ' + unfound_str)
+
+        return mods
 
     def cmd_search(self, args):
         self.print_status("Searching server mods...")
@@ -313,24 +425,13 @@ class CommandLineClient(object):
             print("")
 
     def cmd_install(self, args):
-        import os.path
-        # check that plugins_dir exists
-        plugins_dir = args.plugins_dir
-        if plugins_dir is None:
-            plugins_dir = 'plugins/'
-        # canonicalize
-        plugins_dir = os.path.abspath(plugins_dir)
-        if not os.path.exists(plugins_dir):
-            self.parser.error("The folder " + plugins_dir + " doesn't exist or is not a folder. Please tell me where your plugins folder is by adding: --plugins-dir=/home/minecraft/plugins")
+        plugins_dir = self.canonicalise_plugins_dir(args)
+
+        self.print_status("Loading persistent storage...")
+        storage = self._get_storage(plugins_dir)
 
         self.print_status("Fetching server mods...")
-        mods = self._get_mods_for_slugs(args.slug)
-
-        # could any slugs not be found?
-        if None in mods.values():
-            unfound = [slug for slug,mod in mods.items() if mod is None]
-            unfound_str = '"' + '", "'.join(unfound) + '"'
-            self.parser.error('Couldn\'t find the following server mods (try using "search" to find their slugs): ' + unfound_str)
+        mods = self.clean_mods_for_slugs(args.slug)
 
         # start building a list of files to download
         self.print_status("Building list of files...")
@@ -340,7 +441,7 @@ class CommandLineClient(object):
         for slug, mod in mods.items():
             try:
                 f = mod.latest_file(extension='.jar')
-                files_to_fetch.append([mod, f])
+                files_to_fetch.append((mod, f))
             except:
                 lacking_jars.append(slug)
 
@@ -353,7 +454,7 @@ class CommandLineClient(object):
         for mod, f in files_to_fetch:
             print(" - {0}: {1} ({2})".format(mod.name, f.name, f.release_type))
         print("")
-        print("These will be downloaded directly into plugins/")
+        print("These will be downloaded directly into " + plugins_dir)
         print("")
 
         ok = self.await_ok()
@@ -366,7 +467,81 @@ class CommandLineClient(object):
         file_count = len(files_to_fetch)
         for mod, f in files_to_fetch:
             n += 1
-            self.download(file=f, into=plugins_dir, file_num=n, total_files=file_count)
+            fn = self.download(file=f, into=plugins_dir, file_num=n, total_files=file_count, fn=f.server_mod.slug + '.jar')
+            storage.installed(mod=mod, file=f, filename=fn)
+
+        self.print_status("Cleaning up...")
+        storage.save()
+
+    def cmd_update(self, args):
+        plugins_dir = self.canonicalise_plugins_dir(args)
+
+        self.print_status("Loading persistent storage...")
+        storage = self._get_storage(plugins_dir)
+
+        update_queue = []
+
+        self.print_status("Checking installed plugins...")
+        storage.recheck()
+
+        update_queue = storage.get_data()
+        self.print_status("Checking for updates...")
+        self.api.files(project_ids=[m for m in update_queue.keys()]) # seed cache
+
+        if len(update_queue) == 0:
+            self.parser.error("You don't have anything to update yet!")
+
+        up_to_date = []
+        files_to_fetch = []
+        lacking_jars = []
+        for data in update_queue.values():
+            mod = ServerMod(self.api, data['server_mod_id'], name=data['server_mod_name'])
+            try:
+                f = mod.latest_file(extension='.jar')
+                if f.download_url == data['download_url']:
+                    up_to_date.append([data, f])
+                else:
+                    files_to_fetch.append([data, f])
+            except:
+                lacking_jars.append(data)
+
+        print("Summary:                ")
+        if len(lacking_jars) > 0:
+            print(" No change (lacking JARs)")
+            for data in lacking_jars:
+                print(" - {0}".format(data['server_mod_name']))
+            print("")
+        if len(up_to_date) > 0:
+            print(" No change (up to date)")
+            for data, f in up_to_date:
+                print(" - {0} ({1})".format(data['server_mod_name'], f.name))
+            print("")
+        if len(files_to_fetch) > 0:
+            print(" Going to update")
+            for data, f in files_to_fetch:
+                print(" - {0} ({1} --> {2})".format(data['server_mod_name'], data['file_version'], f.name))
+            print("")
+
+        if len(files_to_fetch) == 0:
+            return
+
+        print("These will be downloaded directly into " + plugins_dir)
+        print("")
+
+        ok = self.await_ok()
+        if not ok:
+            return
+
+        n = 0
+        file_count = len(files_to_fetch)
+        for data, f in files_to_fetch:
+            n += 1
+            fn = self.download(file=f, into=plugins_dir, file_num=n, total_files=file_count, fn=data['filename'])
+            storage.installed(mod=mod, file=f, filename=fn)
+
+        self.print_status("Cleaning up...")
+        storage.save()
+
 
 if __name__ == '__main__':
     clc = CommandLineClient(ServerModAPI("z76dgHas!jsda"))
