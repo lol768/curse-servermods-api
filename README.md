@@ -4,7 +4,18 @@ Curse are providing an official Server Mods API for BukkitDev.
 
 ## Getting an API key
 
-At present, this service is unavailable.
+You can get your API key by using the page at https://dev.bukkit.org/home/servermods-apikey/.
+
+Note: application authors should not embed their API key within their application!
+Application authors should, however, ensure that they specify a unique User-Agent field.
+
+The format:
+
+    MyAwesomeAppName/1.0 (by lukegb)
+
+(i.e.)
+
+    APPNAME/VERSION (by APPLICATION_AUTHOR)
 
 ## Using the API
 
@@ -14,7 +25,7 @@ The API consists of the following endpoints:
 
 ### /projects
 
-URL: http://api-server-mods.curse.local/projects
+URL: https://api.curseforge.com/servermods/projects
 
 This endpoint allows you to look up the project ID(s) which are associated to particular slugs.
 
@@ -27,9 +38,10 @@ This endpoint is GET only.
  * array of server mod objects
 
 #### Example
-	GET /projects?search=worldedit HTTP/1.1
-	Host: api-server-mods.curse.local
+	GET /servermods/projects?search=worldedit HTTP/1.1
+	Host: api.curseforge.com
 	X-API-Key: my-api-key-here
+	User-Agent: MyAwesomeApp/v1.0 (by lukegb)
 
 	HTTP/1.1 200 OK
 	Content-Length: 13
@@ -42,7 +54,7 @@ This endpoint is GET only.
 
 ### files
 
-URL: http://api-server-mods.curse.local/files
+URL: http://api.curseforge.com/servermods/files
 
 This endpoint allows you to fetch the list of files for a particular set of project IDs.
 
@@ -52,12 +64,13 @@ This endpoint is GET only.
  * projectIds: (GET) string - comma separated list of IDs
 
 #### Returns
- * array of file objects (not that they are *not* in an object keyed on the project ID) 
+ * array of file objects (not that they are *not* in an object keyed on the project ID)
 
 #### Example
 	GET /files?projectIds=33921,31043
-	Host: api-server-mods.curse.local
+	Host: api.curseforge.com
 	X-API-Key: my-api-key-here
+	User-Agent: MyAwesomeApp/v1.0 (by lukegb)
 
 	HTTP/1.1 200 OK
 	Content-Length: 3034
