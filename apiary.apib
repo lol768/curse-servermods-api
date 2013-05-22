@@ -1,4 +1,4 @@
-HOST: api-server-mods.curse.local
+HOST: api.curseforge.com
 
 --- Curse Server Mods API ---
 ---
@@ -10,7 +10,7 @@ Projects
 The following endpoints allow retrieval of information relating to projects.
 --
 This endpoint allows you to look up the project IDs associated with a given slug
-GET /projects{?search}
+GET /servermods/projects{?search}
 < 200
 < Content-Type: application/json; charset=utf-8
 [{"id":33921,"name":"BukkitDevTest","slug":"bukkitdevtest","stage":"mature"}]
@@ -18,7 +18,7 @@ GET /projects{?search}
 -- Files --
 This endpoint allows you to fetch the files associated with a set of project IDs.
 
-GET /files{?projectIds}
+GET /servermods/files{?projectIds}
 < 200
 < Content-Type: application/json; charset=utf-8
 [{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/545\/26\/worldedit-4.7.zip","fileName":"worldedit-4.7.zip","gameVersion":"CB 1337","name":"WorldEdit 4.7","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/560\/968\/worldedit-5.0.zip","fileName":"worldedit-5.0.zip","gameVersion":"CB 1.0.1-R1","name":"WorldEdit 5.0","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/568\/218\/worldedit-5.1.zip","fileName":"worldedit-5.1.zip","gameVersion":"CB 1.0.1-R1","name":"WorldEdit 5.1","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/569\/223\/worldedit-5.1.1.zip","fileName":"worldedit-5.1.1.zip","gameVersion":"CB 1.1-R3","name":"WorldEdit 5.1.1","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/573\/609\/worldedit-5.2.zip","fileName":"worldedit-5.2.zip","gameVersion":"CB 1.1-R3","name":"WorldEdit 5.2","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/584\/135\/worldedit-5.3.jar","fileName":"worldedit-5.3.jar","gameVersion":"CB 1.2.4-R1.0","name":"WorldEdit 5.3 (jar only)","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/584\/140\/worldedit-5.3.zip","fileName":"worldedit-5.3.zip","gameVersion":"CB 1.2.5-R1.0","name":"WorldEdit 5.3","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/235\/worldedit-5.4.jar","fileName":"worldedit-5.4.jar","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4 (JAR only)","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/236\/worldedit-5.4.zip","fileName":"worldedit-5.4.zip","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/321\/worldedit-5.4.1.jar","fileName":"worldedit-5.4.1.jar","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4.1 (JAR only)","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/323\/worldedit-5.4.1.zip","fileName":"worldedit-5.4.1.zip","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4.1","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/411\/worldedit-5.4.2.jar","fileName":"worldedit-5.4.2.jar","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4.2 (JAR only)","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/614\/412\/worldedit-5.4.2.zip","fileName":"worldedit-5.4.2.zip","gameVersion":"CB 1.3.1-R2.0","name":"WorldEdit 5.4.2","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/639\/581\/worldedit-5.4.3.jar","fileName":"worldedit-5.4.3.jar","gameVersion":"CB 1.3.2-R2.0","name":"WorldEdit 5.4.3 (JAR only)","projectId":31043,"releaseType":"release"},{"downloadUrl":"http:\/\/addons.curse.cursecdn.com\/files\/639\/583\/worldedit-5.4.3.zip","fileName":"worldedit-5.4.3.zip","gameVersion":"CB 1.3.2-R2.0","name":"WorldEdit 5.4.3","projectId":31043,"releaseType":"release"}]
